@@ -39,3 +39,20 @@ def to_task(row):
 
 
 @app.get("/tasks")
+
+@app.get("/tasks")
+def get_tasks():
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM tasks").fetchall()
+    conn.close()
+    return [to_task(r) for r in rows]
+
+
+@app.get("/tasks/{task_id}")
+def get_task(task_id: int):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    conn.close()
+    if row is None:
+        return JSONResponse(status_code=404, content={"error": "Task not found"})
+    return to_task(row)
