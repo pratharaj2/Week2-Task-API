@@ -39,6 +39,12 @@ def to_task(row):
 
 
 @app.get("/tasks")
+@app.get("/tasks")
+def get_tasks():
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM tasks").fetchall()
+    conn.close()
+    return [to_task(r) for r in rows]
 
 @app.get("/tasks")
 def get_tasks():
@@ -68,3 +74,37 @@ def create_task(body: dict = Body(default=None)):
     row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cur.lastrowid,)).fetchone()
     conn.close()
     return to_task(row)
+@app.put("/tasks/{task_id}")
+def update_task(task_id: int, body: dict = Body(default=None)):
+    conn = get_conn()
+    existing = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if existing is None:
+        conn.close()
+        return JSONResponse(status_code=404, content={"error": "Task not found"})
+    body = body or {}
+    title = body.get("title")
+    done = body.get("done")
+    if not isinstance(title, str) or title.strip() == "":
+        conn.close()
+        return JSONResponse(status_code=400, content={"error": "Title is required"})
+    if done is not None and not isinstance(done, bool):
+        conn.close()
+        return JSONResponse(status_code=400, content={"error": "done must be true or false"})
+    new_done = existing["done"] if done is None else int(done)
+    with conn:
+        conn.execute("UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+                     (title.strip(), new_done, task_id))
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    conn.close()
+    return to_task(row)
+
+
+@app.delete("/tasks/{task_id}", status_code=204)
+def delete_task(task_id: int):
+    conn = get_conn()
+    with conn:
+        cur = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.close()
+    if cur.rowcount == 0:
+        return JSONResponse(status_code=404, content={"error": "Task not found"})
+    return Response(status_code=204)@app.get("/tasks")
