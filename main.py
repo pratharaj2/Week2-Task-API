@@ -56,3 +56,15 @@ def get_task(task_id: int):
     if row is None:
         return JSONResponse(status_code=404, content={"error": "Task not found"})
     return to_task(row)
+
+@app.post("/tasks", status_code=201)
+def create_task(body: dict = Body(default=None)):
+    title = (body or {}).get("title")
+    if not isinstance(title, str) or title.strip() == "":
+        return JSONResponse(status_code=400, content={"error": "Title is required"})
+    conn = get_conn()
+    with conn:
+        cur = conn.execute("INSERT INTO tasks (title, done) VALUES (?, ?)", (title.strip(), 0))
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return to_task(row)
