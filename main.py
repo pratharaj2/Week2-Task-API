@@ -1,110 +1,111 @@
-import sqlite3
 from fastapi import FastAPI, Body
 from fastapi.responses import JSONResponse, Response
 
+from postgres_repository import (
+    init_db,
+    get_all_tasks,
+    get_task_by_id,
+    create_task,
+    update_task,
+    delete_task,
+)
+
+
 app = FastAPI()
-DB_FILE = "tasks.db"
 
 
-def get_conn():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db():
-    conn = get_conn()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            done INTEGER NOT NULL DEFAULT 0
-        )
-    """)
-    count = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
-    if count == 0:
-        with conn:
-            conn.executemany(
-                "INSERT INTO tasks (title, done) VALUES (?, ?)",
-                [("Learn SQLite", 0), ("Build CRUD API", 1), ("Push to GitHub", 0)],
-            )
-    conn.close()
+def to_task(row):
+    return {
+        "id": row[0],
+        "title": row[1],
+        "done": bool(row[2]),
+    }
 
 
 init_db()
 
 
-def to_task(row):
-    return {"id": row["id"], "title": row["title"], "done": bool(row["done"])}
-
-
-@app.get("/tasks")
 @app.get("/tasks")
 def get_tasks():
-    conn = get_conn()
-    rows = conn.execute("SELECT * FROM tasks").fetchall()
-    conn.close()
-    return [to_task(r) for r in rows]
-
-@app.get("/tasks")
-def get_tasks():
-    conn = get_conn()
-    rows = conn.execute("SELECT * FROM tasks").fetchall()
-    conn.close()
-    return [to_task(r) for r in rows]
+    rows = get_all_tasks()
+    return [to_task(row) for row in rows]
 
 
 @app.get("/tasks/{task_id}")
 def get_task(task_id: int):
-    conn = get_conn()
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
-    conn.close()
+    row = get_task_by_id(task_id)
+
     if row is None:
-        return JSONResponse(status_code=404, content={"error": "Task not found"})
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Task not found"},
+        )
+
     return to_task(row)
 
+
 @app.post("/tasks", status_code=201)
-def create_task(body: dict = Body(default=None)):
+def create_task_endpoint(body: dict = Body(default=None)):
     title = (body or {}).get("title")
+
     if not isinstance(title, str) or title.strip() == "":
-        return JSONResponse(status_code=400, content={"error": "Title is required"})
-    conn = get_conn()
-    with conn:
-        cur = conn.execute("INSERT INTO tasks (title, done) VALUES (?, ?)", (title.strip(), 0))
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cur.lastrowid,)).fetchone()
-    conn.close()
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Title is required"},
+        )
+
+    row = create_task(title.strip())
     return to_task(row)
+
+
 @app.put("/tasks/{task_id}")
-def update_task(task_id: int, body: dict = Body(default=None)):
-    conn = get_conn()
-    existing = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+def update_task_endpoint(
+    task_id: int,
+    body: dict = Body(default=None),
+):
+    existing = get_task_by_id(task_id)
+
     if existing is None:
-        conn.close()
-        return JSONResponse(status_code=404, content={"error": "Task not found"})
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Task not found"},
+        )
+
     body = body or {}
     title = body.get("title")
     done = body.get("done")
+
     if not isinstance(title, str) or title.strip() == "":
-        conn.close()
-        return JSONResponse(status_code=400, content={"error": "Title is required"})
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Title is required"},
+        )
+
     if done is not None and not isinstance(done, bool):
-        conn.close()
-        return JSONResponse(status_code=400, content={"error": "done must be true or false"})
-    new_done = existing["done"] if done is None else int(done)
-    with conn:
-        conn.execute("UPDATE tasks SET title = ?, done = ? WHERE id = ?",
-                     (title.strip(), new_done, task_id))
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
-    conn.close()
+        return JSONResponse(
+            status_code=400,
+            content={"error": "done must be true or false"},
+        )
+
+    new_done = bool(existing[2]) if done is None else done
+
+    row = update_task(
+        task_id,
+        title.strip(),
+        new_done,
+    )
+
     return to_task(row)
 
 
 @app.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: int):
-    conn = get_conn()
-    with conn:
-        cur = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-    conn.close()
-    if cur.rowcount == 0:
-        return JSONResponse(status_code=404, content={"error": "Task not found"})
-    return Response(status_code=204)@app.get("/tasks")
+def delete_task_endpoint(task_id: int):
+    deleted = delete_task(task_id)
+
+    if deleted == 0:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Task not found"},
+        )
+
+    return Response(status_code=204)
