@@ -272,3 +272,66 @@ The API behaviour remains consistent while the underlying storage implementation
 ## Author
 
 Pratha Raj
+---
+
+## A4 — Supabase Authentication
+
+### Overview
+
+Supabase Authentication has been integrated into the existing FastAPI and PostgreSQL Docker Compose project. The existing task CRUD endpoints are retained.
+
+### Authentication Endpoints
+
+| Method | Endpoint | Description | Success Status |
+|---|---|---|---|
+| POST | `/auth/signup` | Register a new user | 201 |
+| POST | `/auth/login` | Log in and receive access and refresh tokens | 200 |
+| POST | `/auth/logout` | Sign out an authenticated user | 204 |
+| GET | `/public/info` | Public information; no token required | 200 |
+| GET | `/protected/profile` | Retrieve the authenticated user's profile | 200 |
+| GET | `/protected/dashboard` | Access the protected dashboard | 200 |
+
+### Authentication and Authorization
+
+Protected endpoints require a valid Bearer access token. The API verifies the token through Supabase Auth. Requests with missing or invalid tokens should receive `401 Unauthorized`.
+
+To test authentication in Swagger UI:
+
+1. Open `http://localhost:8000/docs`.
+2. Register a test user using `/auth/signup`.
+3. Log in using `/auth/login`.
+4. Copy the access token from the login response.
+5. Click **Authorize** and enter the access token. If Swagger does not add the `Bearer` prefix automatically, enter `Bearer YOUR_ACCESS_TOKEN`.
+6. Execute the protected endpoints.
+
+### Environment Configuration
+
+Set the required environment variables in the local `.env` file:
+
+- `DATABASE_URL`
+- `POSTGRES_PASSWORD`
+- `SUPABASE_URL`
+- `SUPABASE_KEY`
+- `PORT`
+
+Never commit real passwords, Supabase keys, or authentication tokens to GitHub. The `.env` file should remain excluded from version control.
+
+### Run the Application
+
+With Docker Desktop running, start the services using:
+
+```bash
+docker compose up -d
+```
+
+Open the API documentation at `http://localhost:8000/docs`.
+
+### Existing Task CRUD API
+
+The existing task endpoints from the previous assignments remain part of this project:
+
+- `GET /tasks`
+- `GET /tasks/{task_id}`
+- `POST /tasks`
+- `PUT /tasks/{task_id}`
+- `DELETE /tasks/{task_id}`
